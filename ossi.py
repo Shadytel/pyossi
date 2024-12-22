@@ -129,29 +129,40 @@ class OSSI:
         result = { "rows": [] }
         result_fields_names = []
         result_fields_values = []
+        exception = None
         while True:
             line = self._proc.stdout.readline().strip()
             # print(line)
             if line[0] == 'c':
                 result['cmd'] = line[1:]
             elif line[0] == 'f':
-                result_fields_names.extend(line[1:].split("\t"))
+                result_fields_names.append(line[1:].split("\t"))
             elif line[0] == 'd':
-                result_fields_values.extend(line[1:].split("\t"))
-            elif line[0] == 'n':
-                # print(result_fields_names)
-                # print(result_fields_values)
-                result["rows"].append(list(zip(result_fields_names, result_fields_values)))
+                result_fields_values.append(line[1:].split("\t"))
+            elif line[0] == 'n' or line[0] == 't':
+                # OSSI has a weird quirk in that the line number of the fields
+                # and values matters. If values are unset for the rest of the
+                # corresponding line, it will omit them. Thus, we have to do
+                # this silly little dance.
+                row_field_values = []
+                for (field_names, field_values) in list(zip(result_fields_names, result_fields_values)):
+                    row_field_values.extend(list(zip(field_names, field_values)))
+                result["rows"].append(row_field_values)
                 result_fields_values = []
+                if line[0] == 't':
+                    if exception:
+                        raise exception
+                    return result
             elif line[0] == 'e':
-                raise Exception(line[1:])
-            elif line[0] == 't':
-                return result
+                exception = Exception(line[1:])
 
     def get(self, verb, noun, identifier=None, fields=None):
-        hex_fields = map(noun.get_field_hex_from_name, fields)
         cmd = self._verb_noun_to_cmd(verb, noun, identifier)
-        raw_res = self._send_raw_query(cmd, hex_fields)
+        if fields:
+            hex_fields = map(noun.get_field_hex_from_name, fields)
+            raw_res = self._send_raw_query(cmd, hex_fields)
+        else:
+            raw_res = self._send_raw_query(cmd)
         res = { 'cmd': raw_res['cmd'], 'rows': [] }
         for row in raw_res['rows']:
             fields = {}
