@@ -71,6 +71,7 @@ class Verb(Enum):
     
     ADD = "add"
     BUSYOUT = "busyout"
+    RELEASE = "release"
     CHANGE = "change"
     DISPLAY = "display"
     ERASE = "erase"
@@ -179,7 +180,8 @@ class OSSI:
     def put(self, verb, noun, identifier=None, data=None):
         field_name, field_value = tuple([list(t) for t in zip(*data)])
         cmd = self._verb_noun_to_cmd(verb, noun, identifier)
-        raw_res = self._send_raw_query(cmd, hex_fields)
+        hex_fields = map(noun.get_field_hex_from_name, field_name)
+        raw_res = self._send_raw_query(cmd, hex_fields, field_value)
         res = { 'cmd': raw_res['cmd'], 'rows': [] }
         for row in raw_res['rows']:
             fields = {}

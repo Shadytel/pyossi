@@ -63,10 +63,10 @@ class OSSIGetCommand(OSSICommand):
 class OSSIPutCommand(OSSICommand):
     def __init__(self, verb, noun, identifier=None, data=None):
         super().__init__(verb, noun, identifier)
-        self._data = data
+        self._data = data.items()
 
     def run(self, ossi):
-        return ossi.get(self._verb, self._noun, self._identifier, self._data)
+        return ossi.put(self._verb, self._noun, self._identifier, self._data)
 
 class PyOSSIDaemon:
     def __init__(self, **kwargs):
@@ -75,6 +75,15 @@ class PyOSSIDaemon:
 
         self._app.add_routes([web.get('/api/station', self.list_station)])
         self._app.add_routes([web.get('/api/station/{extn}', self.get_station)])
+
+        self._app.add_routes([web.post('/api/station/{extn}/busyout', self.busyout_station)])
+        self._app.add_routes([web.post('/api/station/{extn}/release', self.release_station)])
+        self._app.add_routes([web.get('/api/station/{extn}/test', self.test_station)])
+
+        self._app.add_routes([web.post('/api/station/{extn}', self.create_station)])
+        self._app.add_routes([web.patch('/api/station/{extn}', self.patch_station)])
+
+        self._app.add_routes([web.delete('/api/station/{extn}', self.delete_station)])
 
     def _process_fields(self, request):
         fields = request.query.getone('fields', None)
@@ -100,6 +109,38 @@ class PyOSSIDaemon:
         cmd = OSSIGetCommand(Verb.LIST, Noun.STATION, extn, fields)
         return await self._try_cmd(cmd)
 
+    async def busyout_station(self, request):
+        extn = request.match_info.get("extn", None)
+        cmd = OSSIGetCommand(Verb.BUSYOUT, Noun.STATION, extn)
+        return await self._try_cmd(cmd)
+
+    async def release_station(self, request):
+        extn = request.match_info.get("extn", None)
+        cmd = OSSIGetCommand(Verb.RELEASE, Noun.STATION, extn)
+        return await self._try_cmd(cmd)
+
+    async def test_station(self, request):
+        extn = request.match_info.get("extn", None)
+        cmd = OSSIGetCommand(Verb.TEST, Noun.STATION, extn)
+        return await self._try_cmd(cmd)
+
+    async def create_station(self, request):
+        extn = request.match_info.get("extn", None)
+        data = await request.post()
+        cmd = OSSIPutCommand(Verb.CREATE, Noun.STATION, extn, data)
+        return await self._try_cmd(cmd)
+
+    async def patch_station(self, request):
+        extn = request.match_info.get("extn", None)
+        data = await request.post()
+        cmd = OSSIPutCommand(Verb.CHANGE, Noun.STATION, extn, data)
+        return await self._try_cmd(cmd)
+
+    async def delete_station(self, request):
+        extn = request.match_info.get("extn", None)
+        cmd = OSSIPutCommand(Verb.ERASE, Noun.STATION, extn)
+        return await self._try_cmd(cmd)
+    
     def run(self, path):
         self._ossi_thread.run()
         web.run_app(self._app, path=path)
