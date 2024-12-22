@@ -25,7 +25,7 @@ class OSSIThread:
             cmd = self._queue.get()
             try:
                 cmd._response = cmd.run(ossi)
-            except Exception as e:
+            except OSSIException as e:
                 cmd._exception = e
             with cmd._cv:
                 cmd._cv.notify()
@@ -86,7 +86,7 @@ class PyOSSIDaemon:
         try:
             resp = await self._ossi_thread.execute(cmd)
             return web.json_response(resp)
-        except Exception as e:
+        except OSSIException as e:
             raise web.HTTPBadRequest(text=str(e))
 
     async def list_station(self, request):

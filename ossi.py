@@ -90,7 +90,12 @@ class Noun(Enum):
         return self._fieldset.get_field_name_from_hex(hex)
     
     STATION = "station"
-    
+
+class OSSIException(Exception):
+    def __init__(self, msg, cmd):
+        self._msg = msg
+        self._cmd = cmd
+
 class OSSI:        
     def connect(self):
         # This is gross and should probably be rewritten
@@ -154,7 +159,7 @@ class OSSI:
                         raise exception
                     return result
             elif line[0] == 'e':
-                exception = Exception(line[1:])
+                exception = OSSIException(line[1:], cmd)
 
     def get(self, verb, noun, identifier=None, fields=None):
         cmd = self._verb_noun_to_cmd(verb, noun, identifier)
