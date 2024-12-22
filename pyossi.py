@@ -76,6 +76,12 @@ class PyOSSIDaemon:
         self._app.add_routes([web.get('/api/station', self.list_station)])
         self._app.add_routes([web.get('/api/station/{extn}', self.get_station)])
 
+    def _process_fields(self, request):
+        fields = request.query.getone('fields', None)
+        if fields:
+            fields = fields.split(',')
+        return fields
+
     async def _try_cmd(self, cmd):
         try:
             resp = await self._ossi_thread.execute(cmd)
@@ -84,12 +90,14 @@ class PyOSSIDaemon:
             raise web.HTTPBadRequest(text=str(e))
 
     async def list_station(self, request):
-        cmd = OSSIGetCommand(Verb.LIST, Noun.STATION)
+        fields = self._process_fields(request)
+        cmd = OSSIGetCommand(Verb.LIST, Noun.STATION, fields=fields)
         return await self._try_cmd(cmd)
 
     async def get_station(self, request):
         extn = request.match_info.get("extn", None)
-        cmd = OSSIGetCommand(Verb.LIST, Noun.STATION, extn)
+        fields = self._process_fields(request)
+        cmd = OSSIGetCommand(Verb.LIST, Noun.STATION, extn, fields)
         return await self._try_cmd(cmd)
 
     def run(self, path):
