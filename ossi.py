@@ -56,6 +56,18 @@ Fieldset.add_fieldset(Fieldset("station", [
     Field("datatn", "4a3cff00", 3),
 ]))
 
+Fieldset.add_fieldset(Fieldset("udp", [
+    Field("extncodes", "0fa2ff00", 5),
+    Field("extncode", "0fa3ff02", 5),
+    Field("type_default", "0fa4ff02", 7),
+    Field("enpcode_default", "0fa5ff02", 3),
+    Field("udpcode_default", "0fa6ff02", 3),
+    # Generate fields for all 100 line suffixes (00-99)
+    *[Field(f"type_{i:02d}", f"0fa4ff{i+14:02x}", 7) for i in range(100)],
+    *[Field(f"enpcode_{i:02d}", f"0fa5ff{i+14:02x}", 3) for i in range(100)],
+    *[Field(f"udpcode_{i:02d}", f"0fa6ff{i+14:02x}", 3) for i in range(100)]
+]))
+
 # add
 # busyout
 # change
@@ -91,6 +103,7 @@ class Noun(Enum):
         return self._fieldset.get_field_name_from_hex(hex)
     
     STATION = "station"
+    UDP = "udp"
 
 class OSSIException(Exception):
     def __init__(self, msg, cmd):

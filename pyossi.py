@@ -76,14 +76,16 @@ class PyOSSIDaemon:
         self._app.add_routes([web.get('/api/station', self.list_station)])
         self._app.add_routes([web.get('/api/station/{extn}', self.get_station)])
 
-        self._app.add_routes([web.post('/api/station/{extn}/busyout', self.busyout_station)])
-        self._app.add_routes([web.post('/api/station/{extn}/release', self.release_station)])
+        self._app.add_routes([web.get('/api/station/{extn}/busyout', self.busyout_station)])
+        self._app.add_routes([web.get('/api/station/{extn}/release', self.release_station)])
         self._app.add_routes([web.get('/api/station/{extn}/test', self.test_station)])
 
         self._app.add_routes([web.post('/api/station/{extn}', self.create_station)])
         self._app.add_routes([web.patch('/api/station/{extn}', self.patch_station)])
 
         self._app.add_routes([web.delete('/api/station/{extn}', self.delete_station)])
+
+        self._app.add_routes([web.get('/api/udp/{prefix}', self.get_udp)])
 
     def _process_fields(self, request):
         fields = request.query.getone('fields', None)
@@ -141,6 +143,11 @@ class PyOSSIDaemon:
         cmd = OSSIPutCommand(Verb.ERASE, Noun.STATION, extn)
         return await self._try_cmd(cmd)
     
+    async def get_udp(self, request):
+        prefix = request.match_info.get("prefix", None)
+        cmd = OSSIGetCommand(Verb.DISPLAY, Noun.UDP, prefix)
+        return await self._try_cmd(cmd)
+
     def run(self, path):
         self._ossi_thread.run()
         web.run_app(self._app, path=path)
