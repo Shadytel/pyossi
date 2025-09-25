@@ -87,6 +87,8 @@ class PyOSSIDaemon:
 
         self._app.add_routes([web.get('/api/udp/{prefix}', self.get_udp)])
 
+        self._app.add_routes([web.get('/api/configuration/all', self.get_configuration_all)])
+
     def _process_fields(self, request):
         fields = request.query.getone('fields', None)
         if fields:
@@ -146,6 +148,10 @@ class PyOSSIDaemon:
     async def get_udp(self, request):
         prefix = request.match_info.get("prefix", None)
         cmd = OSSIGetCommand(Verb.DISPLAY, Noun.UDP, prefix)
+        return await self._try_cmd(cmd)
+
+    async def get_configuration_all(self, request):
+        cmd = OSSIGetCommand(Verb.LIST, Noun.CONFIGURATION, "all")
         return await self._try_cmd(cmd)
 
     def run(self, path):

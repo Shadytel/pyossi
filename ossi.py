@@ -68,6 +68,18 @@ Fieldset.add_fieldset(Fieldset("udp", [
     *[Field(f"udpcode_{i:02d}", f"0fa6ff{i+14:02x}", 3) for i in range(100)]
 ]))
 
+Fieldset.add_fieldset(Fieldset("configuration", [
+    Field("boardnum", "0001ff00", 11),
+    Field("boardtype", "0002ff00", 20),
+    Field("code", "0003ff00", 6),
+    Field("suf1", "0004ff00", 1),
+    Field("suf2", "6800ff00", 1),
+    Field("vintage", "0005ff00", 10),
+    # Slots?
+    *[Field(f"slot_{i+1:02d}", f"{i+6:04x}ff00", 2) for i in range(24)],
+    *[Field(f"slot_{i+25:02d}", f"{i+0x07d1:04x}ff00", 2) for i in range(8)],
+]))
+
 # add
 # busyout
 # change
@@ -104,6 +116,7 @@ class Noun(Enum):
     
     STATION = "station"
     UDP = "udp"
+    CONFIGURATION = "configuration"
 
 class OSSIException(Exception):
     def __init__(self, msg, cmd):
