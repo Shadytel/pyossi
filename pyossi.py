@@ -2,11 +2,59 @@
 
 import argparse
 import asyncio
+import ipaddress
+import jwt
 import queue
 import threading
 
 from aiohttp import web
 from ossi import *
+
+from aiohttp import web
+
+AUTHORIZED_IPS = [
+    "127.0.0.1",
+    "::1",
+    "2602:fce8:101::/48",
+    "128.77.49.34",
+    "205.175.106.0/24"
+]
+
+# Random code courtesy of Google AI
+@web.middleware
+async def auth_middleware(request, handler):
+    #req_ip_addr = ipaddress.ip_address(request.remote)
+    req_ip_addr = request.headers.get("X-Forwarded-For", request.remote)
+    req_ip_addr = ipaddress.ip_address(req_ip_addr)
+
+    for authorized_ip in AUTHORIZED_IPS:
+        if req_ip_addr in ipaddress.ip_network(authorized_ip):
+            return await handler(request)
+
+    if "Authorization" not in request.headers:
+        raise web.HTTPUnauthorized(reason="Missing Authorization header")
+
+    auth_header = request.headers["Authorization"]
+    if auth_header.startswith("Bearer "):
+        auth_token = auth_header[7:]
+    else:
+        raise web.HTTPUnauthorized(reason="Bad Authorization header")
+
+    # if auth_token != "1234567890":
+    #     raise web.HTTPForbidden()
+
+    # request['user'] = authenticated_user_object
+
+    # Pass the request to the next handler in the chain
+    response = await handler(request)
+    return response
+
+async def logging_middleware(app, handler):
+    async def middleware_handler(request):
+        print(f"Incoming request URL: {request.url}")
+        response = await handler(request)
+        return response
+    return middleware_handler
 
 class OSSIThread:
     def __init__(self):
@@ -70,7 +118,7 @@ class OSSIPutCommand(OSSICommand):
 
 class PyOSSIDaemon:
     def __init__(self, **kwargs):
-        self._app = web.Application()
+        self._app = web.Application(middlewares=[auth_middleware])
         self._ossi_thread = OSSIThread()
 
         self._app.add_routes([web.get('/api/station', self.list_station)])
