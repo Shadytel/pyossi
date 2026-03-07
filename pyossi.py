@@ -10,12 +10,11 @@ import threading
 from aiohttp import web
 from ossi import *
 
-from aiohttp import web
-
 AUTHORIZED_IPS = [
     "127.0.0.1",
     "::1",
-    "2602:fce8:101::/48",
+    "2602:fce8:101:1::/64",
+    "2602:fce8:101:2::/64",
     "128.77.49.34",
     "205.175.106.0/24"
 ]
@@ -61,12 +60,13 @@ class OSSIThread:
         self._queue = queue.Queue()
         pass
 
-    def run(self):
+    def run(self, dest):
+        self._dest = dest
         threading.Thread(target=self._worker, daemon=True).start()
 
     def _worker(self):
         ossi = OSSI()
-        ossi.connect()
+        ossi.connect(self._dest)
         print("Connected to OSSI!")
 
         while True:
@@ -121,6 +121,10 @@ class PyOSSIDaemon:
         self._app = web.Application(middlewares=[auth_middleware])
         self._ossi_thread = OSSIThread()
 
+        self._app.add_routes([web.get('/api/board/{board}/busyout', self.busyout_board)])
+        self._app.add_routes([web.get('/api/board/{board}/release', self.release_board)])
+        self._app.add_routes([web.get('/api/board/{board}/test', self.test_board)])
+
         self._app.add_routes([web.get('/api/station', self.list_station)])
         self._app.add_routes([web.get('/api/station/{extn}', self.get_station)])
 
@@ -134,6 +138,9 @@ class PyOSSIDaemon:
         self._app.add_routes([web.delete('/api/station/{extn}', self.delete_station)])
 
         self._app.add_routes([web.get('/api/udp/{prefix}', self.get_udp)])
+
+        self._app.add_routes([web.get('/api/intra-switch-cdr', self.get_intra_switch_cdr)])
+        self._app.add_routes([web.patch('/api/intra-switch-cdr', self.patch_intra_switch_cdr)])
 
         self._app.add_routes([web.get('/api/configuration/all', self.get_configuration_all)])
 
@@ -149,6 +156,21 @@ class PyOSSIDaemon:
             return web.json_response(resp)
         except OSSIException as e:
             raise web.HTTPBadRequest(text=str(e))
+
+    async def busyout_board(self, request):
+        board = request.match_info.get("board", None)
+        cmd = OSSIGetCommand(Verb.BUSYOUT, Noun.BOARD, board)
+        return await self._try_cmd(cmd)
+
+    async def release_board(self, request):
+        board = request.match_info.get("board", None)
+        cmd = OSSIGetCommand(Verb.RELEASE, Noun.BOARD, board)
+        return await self._try_cmd(cmd)
+
+    async def test_board(self, request):
+        board = request.match_info.get("board", None)
+        cmd = OSSIGetCommand(Verb.TEST, Noun.BOARD, board)
+        return await self._try_cmd(cmd)
 
     async def list_station(self, request):
         fields = self._process_fields(request)
@@ -193,6 +215,15 @@ class PyOSSIDaemon:
         cmd = OSSIPutCommand(Verb.ERASE, Noun.STATION, extn)
         return await self._try_cmd(cmd)
     
+    async def get_intra_switch_cdr(self, request):
+        cmd = OSSIGetCommand(Verb.DISPLAY, Noun.INTRA_SWITCH_CDR)
+        return await self._try_cmd(cmd)
+
+    async def patch_intra_switch_cdr(self, request):
+        data = await request.post()
+        cmd = OSSIPutCommand(Verb.CHANGE, Noun.INTRA_SWITCH_CDR, data)
+        return await self._try_cmd(cmd)
+
     async def get_udp(self, request):
         prefix = request.match_info.get("prefix", None)
         cmd = OSSIGetCommand(Verb.DISPLAY, Noun.UDP, prefix)
@@ -202,23 +233,23 @@ class PyOSSIDaemon:
         cmd = OSSIGetCommand(Verb.LIST, Noun.CONFIGURATION, "all")
         return await self._try_cmd(cmd)
 
-    def run(self, path):
-        self._ossi_thread.run()
-        web.run_app(self._app, path=path)
+    def run(self, dest, path, port):
+        self._ossi_thread.run(dest)
+        if path:
+            web.run_app(self._app, path=path)
+        else:
+            web.run_app(self._app, port=int(port))
 
-# def main():
-#     ossi = OSSI()
-#     ossi.connect()
-#     pprint.pp(ossi._send_raw_query("list sta", fields=["8005ff00", "8003ff00"]))
 
 def main():
     arg_parser = argparse.ArgumentParser(description='Definity API server')
     arg_parser.add_argument('-P', '--port', help='TCP port to serve on.', default='8080')
     arg_parser.add_argument('-U', '--path', help='Unix file system path to serve on.')
+    arg_parser.add_argument('dest', type=str, help='SSH destination to connect to')
     args = arg_parser.parse_args()
 
     daemon = PyOSSIDaemon(**vars(args))
-    daemon.run(args.path)
+    daemon.run(args.dest, args.path, args.port)
 
 if __name__ == '__main__':
     main()

@@ -41,7 +41,10 @@ class Fieldset:
 
     def get_fieldset(noun):
         return Fieldset.fieldsets[noun]
-    
+
+Fieldset.add_fieldset(Fieldset("board", [
+]))
+
 Fieldset.add_fieldset(Fieldset("station", [
     Field("extn", "8005ff00", 5),
     Field("port", "8004ff00", 7),
@@ -66,6 +69,13 @@ Fieldset.add_fieldset(Fieldset("udp", [
     *[Field(f"type_{i:02d}", f"0fa4ff{i+14:02x}", 7) for i in range(100)],
     *[Field(f"enpcode_{i:02d}", f"0fa5ff{i+14:02x}", 3) for i in range(100)],
     *[Field(f"udpcode_{i:02d}", f"0fa6ff{i+14:02x}", 3) for i in range(100)]
+]))
+
+Fieldset.add_fieldset(Fieldset("intra-switch-cdr", [
+    Field("num_extn", "4651ff01", 4),
+    Field("max_extn", "4652ff00", 4),
+    # Generate fields for the first 255 extensions
+    *[Field(f"extn_{i:04d}", f"1771ff{i+1:02x}", 5) for i in range(255)],
 ]))
 
 Fieldset.add_fieldset(Fieldset("configuration", [
@@ -114,9 +124,11 @@ class Noun(Enum):
     def get_field_name_from_hex(self, hex):
         return self._fieldset.get_field_name_from_hex(hex)
     
+    BOARD = "board"
+    CONFIGURATION = "configuration"
+    INTRA_SWITCH_CDR = "intra-switch-cdr"
     STATION = "station"
     UDP = "udp"
-    CONFIGURATION = "configuration"
 
 class OSSIException(Exception):
     def __init__(self, msg, cmd):
@@ -124,10 +136,10 @@ class OSSIException(Exception):
         self._cmd = cmd
 
 class OSSI:        
-    def connect(self):
+    def connect(self, dest):
         # This is gross and should probably be rewritten
         self._proc = subprocess.Popen(
-            ["ssh", "-tt", "isdn-modem-c"],
+            ["ssh", "-tt", dest],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True
@@ -218,7 +230,7 @@ class OSSI:
 
 def main():
     ossi = OSSI()
-    ossi.connect()
+    ossi.connect("isdn-modem-c")
     pprint.pp(ossi.get(Verb.LIST, Noun.STATION, fields=["extn", "name"]))
 
 if __name__ == '__main__':
