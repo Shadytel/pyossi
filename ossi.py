@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import re
 import subprocess
 import json
 import pprint
@@ -30,7 +31,10 @@ class Fieldset:
         if name in self._field_name_to_hex:
             return self._field_name_to_hex[name]
         else:
-            raise Exception(f"Field name \"{name}\" unknown for {self._noun} fieldset")
+            if re.match(r"^[0-9A-Fa-f]{8}$", name):
+                return name
+            else:
+                raise Exception(f"Field name \"{name}\" unknown for {self._noun} fieldset")
 
     def get_field_name_from_hex(self, hex):
         # Default to the hex value if it's unknown
@@ -109,6 +113,7 @@ class Verb(Enum):
     CHANGE = "change"
     DISPLAY = "display"
     ERASE = "erase"
+    REMOVE = "remove"
     GET = "get"
     LIST = "list"
     TEST = "test"
@@ -136,10 +141,10 @@ class OSSIException(Exception):
         self._cmd = cmd
 
 class OSSI:        
-    def connect(self, dest):
+    def connect(self, remote):
         # This is gross and should probably be rewritten
         self._proc = subprocess.Popen(
-            ["ssh", "-tt", dest],
+            ["ssh", "-tt", remote],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True

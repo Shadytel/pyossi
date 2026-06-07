@@ -13,10 +13,12 @@ from ossi import *
 AUTHORIZED_IPS = [
     "127.0.0.1",
     "::1",
-    "2602:fce8:101:1::/64",
-    "2602:fce8:101:2::/64",
-    "128.77.49.34",
-    "205.175.106.0/24"
+    "128.77.49.33", # GlobalProtect US Northwest
+    "128.77.49.34", # GlobalProtect US Northwest
+    "205.175.106.0/24", # UW WiFi NAT
+    "205.201.63.52", # superdoof
+    "2602:fce8:1:0:3b99:6156:83b0:34d7", # superdoof
+    "2602:fce8:101::/48", # shadytel sub-allocation
 ]
 
 # Random code courtesy of Google AI
@@ -31,7 +33,7 @@ async def auth_middleware(request, handler):
             return await handler(request)
 
     if "Authorization" not in request.headers:
-        raise web.HTTPUnauthorized(reason="Missing Authorization header")
+        raise web.HTTPUnauthorized(reason=f"Missing Authorization header (Source IP: {req_ip_addr})")
 
     auth_header = request.headers["Authorization"]
     if auth_header.startswith("Bearer "):
@@ -56,17 +58,18 @@ async def logging_middleware(app, handler):
     return middleware_handler
 
 class OSSIThread:
-    def __init__(self):
+    def __init__(self, **kwargs):
         self._queue = queue.Queue()
+        self._remote = kwargs['remote']
         pass
 
-    def run(self, dest):
-        self._dest = dest
+    def run(self, remote):
+        self._remote = remote
         threading.Thread(target=self._worker, daemon=True).start()
 
     def _worker(self):
         ossi = OSSI()
-        ossi.connect(self._dest)
+        ossi.connect(self._remote)
         print("Connected to OSSI!")
 
         while True:
@@ -119,7 +122,7 @@ class OSSIPutCommand(OSSICommand):
 class PyOSSIDaemon:
     def __init__(self, **kwargs):
         self._app = web.Application(middlewares=[auth_middleware])
-        self._ossi_thread = OSSIThread()
+        self._ossi_thread = OSSIThread(**kwargs)
 
         self._app.add_routes([web.get('/api/board/{board}/busyout', self.busyout_board)])
         self._app.add_routes([web.get('/api/board/{board}/release', self.release_board)])
@@ -155,6 +158,7 @@ class PyOSSIDaemon:
             resp = await self._ossi_thread.execute(cmd)
             return web.json_response(resp)
         except OSSIException as e:
+            print(e)
             raise web.HTTPBadRequest(text=str(e))
 
     async def busyout_board(self, request):
@@ -201,7 +205,7 @@ class PyOSSIDaemon:
     async def create_station(self, request):
         extn = request.match_info.get("extn", None)
         data = await request.post()
-        cmd = OSSIPutCommand(Verb.CREATE, Noun.STATION, extn, data)
+        cmd = OSSIPutCommand(Verb.ADD, Noun.STATION, extn, data)
         return await self._try_cmd(cmd)
 
     async def patch_station(self, request):
@@ -212,7 +216,7 @@ class PyOSSIDaemon:
 
     async def delete_station(self, request):
         extn = request.match_info.get("extn", None)
-        cmd = OSSIPutCommand(Verb.ERASE, Noun.STATION, extn)
+        cmd = OSSIGetCommand(Verb.REMOVE, Noun.STATION, extn)
         return await self._try_cmd(cmd)
     
     async def get_intra_switch_cdr(self, request):
@@ -233,8 +237,8 @@ class PyOSSIDaemon:
         cmd = OSSIGetCommand(Verb.LIST, Noun.CONFIGURATION, "all")
         return await self._try_cmd(cmd)
 
-    def run(self, dest, path, port):
-        self._ossi_thread.run(dest)
+    def run(self, remote, path, port):
+        self._ossi_thread.run(remote)
         if path:
             web.run_app(self._app, path=path)
         else:
@@ -245,11 +249,11 @@ def main():
     arg_parser = argparse.ArgumentParser(description='Definity API server')
     arg_parser.add_argument('-P', '--port', help='TCP port to serve on.', default='8080')
     arg_parser.add_argument('-U', '--path', help='Unix file system path to serve on.')
-    arg_parser.add_argument('dest', type=str, help='SSH destination to connect to')
+    arg_parser.add_argument('-R', '--remote', help='SSH host to connect to.', default='isdn-modem-c')
     args = arg_parser.parse_args()
 
     daemon = PyOSSIDaemon(**vars(args))
-    daemon.run(args.dest, args.path, args.port)
+    daemon.run(args.remote, args.path, args.port)
 
 if __name__ == '__main__':
     main()
