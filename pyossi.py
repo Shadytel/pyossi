@@ -139,6 +139,7 @@ class PyOSSIDaemon:
         self._app.add_routes([web.delete('/api/station/{extn}', self.delete_station)])
 
         self._app.add_routes([web.get('/api/udp/{prefix}', self.get_udp)])
+        self._app.add_routes([web.patch('/api/udp/{prefix}', self.patch_udp)])
 
         self._app.add_routes([web.get('/api/intra-switch-cdr', self.get_intra_switch_cdr)])
         self._app.add_routes([web.patch('/api/intra-switch-cdr', self.patch_intra_switch_cdr)])
@@ -229,6 +230,12 @@ class PyOSSIDaemon:
     async def get_udp(self, request):
         prefix = request.match_info.get("prefix", None)
         cmd = OSSIGetCommand(Verb.DISPLAY, Noun.UDP, prefix)
+        return await self._try_cmd(cmd)
+
+    async def patch_udp(self, request):
+        prefix = request.match_info.get("prefix", None)
+        data = await request.post()
+        cmd = OSSIPutCommand(Verb.CHANGE, Noun.UDP, prefix, data)
         return await self._try_cmd(cmd)
 
     async def get_configuration_all(self, request):
