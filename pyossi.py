@@ -61,10 +61,8 @@ class OSSIThread:
     def __init__(self, **kwargs):
         self._queue = queue.Queue()
         self._remote = kwargs['remote']
-        pass
 
-    def run(self, remote):
-        self._remote = remote
+    def run(self):
         threading.Thread(target=self._worker, daemon=True).start()
 
     def _worker(self):
@@ -237,8 +235,8 @@ class PyOSSIDaemon:
         cmd = OSSIGetCommand(Verb.LIST, Noun.CONFIGURATION, "all")
         return await self._try_cmd(cmd)
 
-    def run(self, remote, path, port):
-        self._ossi_thread.run(remote)
+    def run(self, path, port):
+        self._ossi_thread.run()
         if path:
             web.run_app(self._app, path=path)
         else:
@@ -253,7 +251,7 @@ def main():
     args = arg_parser.parse_args()
 
     daemon = PyOSSIDaemon(**vars(args))
-    daemon.run(args.remote, args.path, args.port)
+    daemon.run(args.path, args.port)
 
 if __name__ == '__main__':
     main()
